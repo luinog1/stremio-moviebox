@@ -6,6 +6,7 @@ A high-performance Stremio addon that bridges MovieBox's vast streaming catalog 
 
 - **Multi-API Scraping:** Concurrently queries MovieBox's v1, v2, and v3 APIs to ensure maximum stream availability.
 - **Deduplication:** Intelligently merges identical streams and groups them by resolution and audio language.
+- **Web UI Configuration:** Easily configure minimum resolutions, language priority, and UI layouts through a sleek web interface.
 - **Stremio Native:** Fully compatible with Stremio's addon system, including Cinemeta integration and robust metadata matching.
 - **Fast & Asynchronous:** Built with FastAPI and httpx for highly concurrent, non-blocking requests.
 
@@ -38,7 +39,7 @@ A high-performance Stremio addon that bridges MovieBox's vast streaming catalog 
    cp .env.example .env
    ```
 
-## Usage
+### Method 1: Local Server (Python)
 
 Start the local server using the Makefile:
 
@@ -46,9 +47,19 @@ Start the local server using the Makefile:
 make start
 ```
 
-This will spin up a Uvicorn server on `http://127.0.0.1:8000`. 
+This will spin up a Uvicorn server on `http://127.0.0.1:8000`.
 
-To install the addon in Stremio, simply navigate to `http://127.0.0.1:8000/manifest.json` in your browser, or paste that link directly into the Stremio Addons search bar.
+### Method 2: Docker Compose
+
+You can easily run the application using Docker and Docker Compose:
+
+```bash
+docker-compose up -d
+```
+
+### Installing in Stremio
+
+To install the addon in Stremio, simply navigate to `http://127.0.0.1:8000/configure/` in your browser. From the configuration page, you can customize your preferences (resolution, language, and layout) and click the **Install Addon** button to add it directly to Stremio.
 
 ## Architecture
 
