@@ -12,7 +12,8 @@ async def lifespan(app: FastAPI):
     app.state.http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(settings.REQUEST_TIMEOUT),
         limits=httpx.Limits(max_keepalive_connections=50, max_connections=100),
-        follow_redirects=True
+        follow_redirects=True,
+        proxy=settings.PROXY_URL
     )
     yield
     await app.state.http_client.aclose()

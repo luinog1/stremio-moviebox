@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     CACHE_TTL: int = 3600
     REQUEST_TIMEOUT: int = 15
     MAX_STREAMS: int = 10
+    PROXY_URL: str | None = None
 
     ENABLE_CACHE: bool = True
     ENABLE_VALIDATION: bool = True
@@ -28,7 +29,7 @@ import logging
 import sys
 from datetime import datetime
 
-# Setup professional structured logging (Phase 10)
+# Setup professional structured logging
 class StructuredFormatter(logging.Formatter):
     def format(self, record):
         timestamp = datetime.utcfromtimestamp(record.created).isoformat() + "Z"

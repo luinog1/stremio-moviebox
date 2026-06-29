@@ -32,6 +32,12 @@ A high-performance Stremio addon that bridges MovieBox's vast streaming catalog 
    pip install -r requirements.txt
    ```
 
+3. **Configure Environment:**
+   Copy the example environment file and update it with your settings (including proxy details if needed):
+   ```bash
+   cp .env.example .env
+   ```
+
 ## Usage
 
 Start the local server using the Makefile:
