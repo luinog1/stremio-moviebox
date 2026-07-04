@@ -168,7 +168,8 @@ async def extract_streams(
             return ([], match)
 
     async def fetch_v3(match):
-        resolutions_to_try = [
+    try:
+        dl = MobileVideo(match["session"], resolution=CustomResolutionTypeV3._1080P)
     CustomResolutionTypeV3._2160P,  # <- adiciona no topo
     CustomResolutionTypeV3.BEST,
     CustomResolutionTypeV3._720P,
