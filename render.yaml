@@ -1,8 +1,10 @@
 services:
   - type: web
     name: stremio-moviebox
-    env: docker
+    runtime: python
     plan: free
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    startCommand: .venv/bin/python -m server.main
     healthCheckPath: /manifest.json
     envVars:
       - key: PORT
