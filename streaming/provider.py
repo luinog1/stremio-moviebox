@@ -168,37 +168,27 @@ async def extract_streams(
             return ([], match)
 
     async def fetch_v3(match):
-    try:
-        dl = MobileVideo(match["session"], resolution=CustomResolutionTypeV3._1080P)
-    CustomResolutionTypeV3._2160P,  # <- adiciona no topo
-    CustomResolutionTypeV3.BEST,
-    CustomResolutionTypeV3._720P,
-    CustomResolutionTypeV3._480P,
-    CustomResolutionTypeV3._360P,
-]
-        for res_type in resolutions_to_try:
-            try:
-                dl = MobileVideo(match["session"], resolution=res_type)
-                if is_movie:
-                    res = await dl.get_content_model(
-                        subject_id=str(match["item"].subject_id)
-                    )
-                else:
-                    res = await dl.get_content_model(
-                        subject_id=str(match["item"].subject_id),
-                        season=season,
-                        episode=episode,
-                    )
-                await match["session"].close()
-                return (res.list, match)
-            except Exception as e:
-                if "406" not in str(e):
-                    break
+        from moviebox.mobile.constants import ResolutionType
         try:
+            dl = MobileVideo(match["session"], resolution=ResolutionType.UNSPECIFIED)
+            if is_movie:
+                res = await dl.get_content_model(
+                    subject_id=str(match["item"].subject_id)
+                )
+            else:
+                res = await dl.get_content_model(
+                    subject_id=str(match["item"].subject_id),
+                    season=season,
+                    episode=episode,
+                )
             await match["session"].close()
+            return (res.list, match)
         except Exception:
-            pass
-        return ([], match)
+            try:
+                await match["session"].close()
+            except Exception:
+                pass
+            return ([], match)
 
     for match in matches:
         if match["version"] == "v2":
