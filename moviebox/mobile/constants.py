@@ -186,27 +186,28 @@ class ResolutionType(IntEnum):
     _480P = 480
     _720P = 720
     _1080P = 1080
+    _2160P = 2160  # <- adiciona isto
     UNSPECIFIED = 0
-
 
 class CustomResolutionType(StrEnum):
     _360P = "360P"
     _480P = "480P"
     _720P = "720P"
     _1080P = "1080P"
+    _2160P = "2160P"   # <- adiciona isto
     BEST = "best"
     WORST = "worst"
 
     @classmethod
     def to_default_resolution_map(cls):
-        """Maps CustomResolutionTyoe to its ResolutionType equivalent"""
         return {
             cls._360P: ResolutionType._360P,
             cls._480P: ResolutionType._480P,
             cls._720P: ResolutionType._720P,
             cls._1080P: ResolutionType._1080P,
+            cls._2160P: ResolutionType._2160P,  # <- adiciona isto
             cls.WORST: ResolutionType._360P,
-            cls.BEST: ResolutionType._1080P,
+            cls.BEST: ResolutionType._2160P,    # <- muda de _1080P para _2160P
         }
 
     @classmethod
