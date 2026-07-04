@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 This module contains base classes for the entire package
 """
@@ -10,7 +11,6 @@ from pathlib import Path
 import httpx
 
 from moviebox.utils import get_event_loop
-from __future__ import annotations
 
 
 class BaseProviderException(Exception):
