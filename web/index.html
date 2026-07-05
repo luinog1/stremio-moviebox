@@ -1,161 +1,166 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MovieBox Addon Configuration</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #1a1a1a;
-            color: #ffffff;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-        .container {
-            background-color: #2d2d2d;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-            width: 100%;
-            max-width: 500px;
-        }
-        h1 {
-            text-align: center;
-            color: #e50914;
-            margin-bottom: 30px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        select, input, textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #444;
-            border-radius: 5px;
-            background-color: #3d3d3d;
-            color: white;
-            box-sizing: border-box;
-        }
-        .help-text {
-            font-size: 0.85em;
-            color: #aaa;
-            margin-top: 5px;
-        }
-        .btn {
-            background-color: #e50914;
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: bold;
-            width: 100%;
-            transition: background-color 0.3s;
-        }
-        .btn:hover {
-            background-color: #f40612;
-        }
-        .cookie-section {
-            background-color: #3d3d3d;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            border-left: 4px solid #e50914;
-        }
-        .cookie-section h3 {
-            margin-top: 0;
-            color: #e50914;
-        }
-    </style>
+    <title>MovieBox | Stremio Addon</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Preload critical assets for faster LCP -->
+    <link rel="preload" as="image" href="/logo.png">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0"></noscript>
+    
+    <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>MovieBox Addon</h1>
-        
-        <div class="cookie-section">
-            <h3>🔑 FEBOX Cookie (Opcional)</h3>
-            <p style="font-size: 0.9em; color: #ccc;">
-                Para streams em 4K, forneça seu cookie FEBOX do MovieBox.
-                Sem isso, apenas streams em 1080p estarão disponíveis.
-            </p>
-            <div class="form-group">
-                <label for="febox_cookie">Valor do Cookie FEBOX:</label>
-                <textarea id="febox_cookie" rows="3" placeholder="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."></textarea>
-                <div class="help-text">
-                    Cole seu cookie FEBOX aqui.
-                </div>
-            </div>
-        </div>
-        
-        <div class="form-group">
-            <label for="resolution">Resolução Mínima:</label>
-            <select id="resolution">
-                <option value="all">Todas Resoluções</option>
-                <option value="4k">Somente 4K</option>
-                <option value="1080p">1080p e acima</option>
-                <option value="720p">720p e acima</option>
-                <option value="480p">480p e acima</option>
-            </select>
-            <div class="help-text">
-                Selecione "Somente 4K" para filtrar streams 4K (requer cookie FEBOX).
-            </div>
-        </div>
-        
-        <div class="form-group">
-            <label for="language">Idioma:</label>
-            <select id="language">
-                <option value="all">Todos Idiomas</option>
-                <option value="en">Inglês</option>
-                <option value="es">Espanhol</option>
-                <option value="fr">Francês</option>
-                <option value="de">Alemão</option>
-                <option value="pt">Português</option>
-            </select>
-        </div>
-        
-        <div class="form-group">
-            <label for="layout">Estilo de Layout:</label>
-            <select id="layout">
-                <option value="cinematic">Cinematic</option>
-                <option value="compact">Compact</option>
-                <option value="torrentio">Torrentio Style</option>
-            </select>
-        </div>
-        
-        <button class="btn" onclick="installAddon()">Instalar Addon</button>
+    <div class="background-effects">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
     </div>
 
-    <script>
-        function installAddon() {
-            const config = {
-                resolution: document.getElementById('resolution').value,
-                language: document.getElementById('language').value,
-                layout: document.getElementById('layout').value,
-                febox_cookie: document.getElementById('febox_cookie').value || null
-            };
-            
-            // Converter configuração para base64 no próprio navegador
-            const config_json = JSON.stringify(config);
-            const config_base64 = btoa(config_json);
-            
-            // Construir URL de instalação
-            const baseUrl = window.location.origin;
-            const installUrl = `${baseUrl}/${config_base64}/manifest.json`;
-            
-            // Redirecionar para o Stremio
-            window.location.href = installUrl;
-        }
-    </script>
+    <header class="header">
+        <div class="container header-container">
+            <div class="brand">
+                <img src="/logo.png" alt="MovieBox" class="logo">
+                <h1 class="brand-name">MovieBox</h1>
+            </div>
+            <button class="theme-toggle" id="themeToggle" aria-label="Toggle Theme">
+                <span class="material-symbols-rounded">light_mode</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="main" id="smooth-wrapper">
+        <div id="smooth-content">
+            <section class="hero">
+                <div class="container hero-container">
+                    <div class="hero-badge">
+                        <span class="material-symbols-rounded">bolt</span>
+                        <span>Lightning Fast Scraping</span>
+                    </div>
+                    <h2 class="hero-title">The Ultimate Streaming Experience</h2>
+                    <p class="hero-description">Configure your Stremio addon for 4K streams, tailored languages, and a beautiful UI layout.</p>
+                </div>
+            </section>
+
+            <section class="config-section">
+                <div class="container">
+                    <form id="configForm" class="config-form">
+                        
+                        <div class="form-group">
+                            <label>Minimum Resolution</label>
+                            <div class="custom-dropdown" data-id="resolution">
+                                <div class="dropdown-trigger">
+                                    <span class="dropdown-value">All Resolutions</span>
+                                    <span class="material-symbols-rounded dropdown-icon">expand_more</span>
+                                </div>
+                                <div class="dropdown-menu">
+                                    <div class="dropdown-item selected" data-value="all">All Resolutions</div>
+                                    <div class="dropdown-item" data-value="4k">4K Only</div>
+                                    <div class="dropdown-item" data-value="1080p">1080p and Above</div>
+                                    <div class="dropdown-item" data-value="720p">720p and Above</div>
+                                </div>
+                                <input type="hidden" id="resolution" value="all">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Preferred Audio Language</label>
+                            <div class="custom-dropdown" data-id="language">
+                                <div class="dropdown-trigger">
+                                    <span class="dropdown-value">All Languages</span>
+                                    <span class="material-symbols-rounded dropdown-icon">expand_more</span>
+                                </div>
+                                <div class="dropdown-menu">
+                                    <div class="dropdown-item selected" data-value="all">All Languages</div>
+                                    <div class="dropdown-item" data-value="en">English</div>
+                                    <div class="dropdown-item" data-value="hi">Hindi</div>
+                                    <div class="dropdown-item" data-value="es">Spanish</div>
+                                    <div class="dropdown-item" data-value="fr">French</div>
+                                    <div class="dropdown-item" data-value="de">German</div>
+                                    <div class="dropdown-item" data-value="orig">Original Audio</div>
+                                </div>
+                                <input type="hidden" id="language" value="all">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Layout Style</label>
+                            <div class="custom-dropdown" data-id="layout">
+                                <div class="dropdown-trigger">
+                                    <span class="dropdown-value">Cinematic (Clean)</span>
+                                    <span class="material-symbols-rounded dropdown-icon">expand_more</span>
+                                </div>
+                                <div class="dropdown-menu">
+                                    <div class="dropdown-item selected" data-value="cinematic">Cinematic (Clean)</div>
+                                    <div class="dropdown-item" data-value="torrentio">Compact (Torrentio Style)</div>
+                                    <div class="dropdown-item" data-value="badges">Badges (Technical)</div>
+                                </div>
+                                <input type="hidden" id="layout" value="cinematic">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>FebBox Cookie <span class="form-hint">(optional — unlocks 4K/HDR streams)</span></label>
+                            <div class="febbox-input-wrapper">
+                                <input
+                                    type="password"
+                                    id="febbox_cookie"
+                                    class="febbox-input"
+                                    placeholder="Paste your FebBox ui= cookie value here"
+                                    autocomplete="off"
+                                    oninput="updateLink()"
+                                >
+                                <button type="button" class="febbox-toggle" id="febboxToggle" aria-label="Show/hide cookie" onclick="
+                                    var inp = document.getElementById('febbox_cookie');
+                                    inp.type = inp.type === 'password' ? 'text' : 'password';
+                                    this.querySelector('span').textContent = inp.type === 'password' ? 'visibility' : 'visibility_off';
+                                ">
+                                    <span class="material-symbols-rounded">visibility</span>
+                                </button>
+                            </div>
+                            <p class="form-hint" style="margin-top:6px;">
+                                Get it from <a href="https://www.febbox.com" target="_blank" rel="noopener" class="hint-link">febbox.com</a>
+                                → Login → DevTools → Application → Cookies → copy the <code>ui</code> value.
+                            </p>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" id="installAppBtn" class="btn btn-primary">
+                                <span class="material-symbols-rounded">phone_iphone</span>
+                                Install to App
+                            </button>
+                            <button type="button" id="installWebBtn" class="btn btn-secondary">
+                                <span class="material-symbols-rounded">language</span>
+                                Install to Web
+                            </button>
+                        </div>
+                        
+                        <div class="raw-link-container">
+                            <input type="text" id="rawLinkInput" class="raw-link-input" readonly>
+                            <button type="button" id="copyLinkBtn" class="btn-icon" aria-label="Copy Link">
+                                <span class="material-symbols-rounded">content_copy</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <div id="toast" class="toast">Link copied to clipboard</div>
+
+    <!-- Defer non-critical scripts to avoid render blocking -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.29/bundled/lenis.min.js"></script>
+    <script defer src="./js/app.js"></script>
 </body>
 </html>
