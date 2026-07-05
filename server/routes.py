@@ -1,21 +1,16 @@
-"""
-FastAPI Routes - Updated to handle FEBOX cookie configuration
-"""
 import logging
 import json
 import base64
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from streaming.provider import StreamProcessor
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-templates = Jinja2Templates(directory="web")
 
-# Default configuration
+# Configuração padrão caso o base64 falhe
 DEFAULT_CONFIG = {
     "resolution": "all",
     "language": "all",
@@ -25,26 +20,32 @@ DEFAULT_CONFIG = {
 
 @router.get("/", response_class=HTMLResponse)
 async def root():
-    """Redirect to configure page"""
+    """Redireciona para a página de configuração"""
     return RedirectResponse(url="/configure/")
 
 @router.get("/configure/", response_class=HTMLResponse)
-async def configure_page(request: Request):
-    """Serve configuration page"""
-    return templates.TemplateResponse("configure.html", {"request": request})
+async def configure_page():
+    """Serve a página de configuração HTML diretamente sem Jinja2"""
+    html_file = Path("web/index.html")
+    if html_file.exists():
+        return HTMLResponse(content=html_file.read_text())
+    return HTMLResponse("<h1>Página de configuração não encontrada</h1>", status_code=404)
+
+def decode_config(config_base64: str) -> dict:
+    """Decodifica o base64 da URL de forma segura"""
+    try:
+        # Adiciona padding se necessário
+        padded_base64 = config_base64 + '=' * (-len(config_base64) % 4)
+        config_json = base64.urlsafe_b64decode(padded_base64).decode('utf-8')
+        return json.loads(config_json)
+    except Exception as e:
+        logger.error(f"Erro ao decodificar config: {e}")
+        return DEFAULT_CONFIG.copy()
 
 @router.get("/{config_base64}/manifest.json")
 async def get_manifest(config_base64: str):
-    """Generate addon manifest based on configuration"""
-    try:
-        # Decode configuration from base64
-        config_json = base64.b64decode(config_base64).decode('utf-8')
-        config = json.loads(config_json)
-    except Exception as e:
-        logger.error(f"Config decode error: {e}")
-        config = DEFAULT_CONFIG
-    
-    # Merge with defaults
+    """Gera o manifest do addon"""
+    config = decode_config(config_base64)
     full_config = {**DEFAULT_CONFIG, **config}
     
     manifest = {
@@ -66,51 +67,16 @@ async def get_manifest(config_base64: str):
 
 @router.get("/{config_base64}/stream/{content_type}/{imdb_id}.json")
 async def get_stream(config_base64: str, content_type: str, imdb_id: str):
-    """Get streams for content"""
-    try:
-        # Decode configuration from base64
-        config_json = base64.b64decode(config_base64).decode('utf-8')
-        config = json.loads(config_json)
-    except Exception as e:
-        logger.error(f"Config decode error: {e}")
-        config = DEFAULT_CONFIG
-    
-    # Merge with defaults
+    """Obtém os streams para o conteúdo solicitado"""
+    config = decode_config(config_base64)
     full_config = {**DEFAULT_CONFIG, **config}
     
     logger.info(f"Stream request: {imdb_id} with config: {full_config}")
     
-    # Initialize stream processor with configuration
+    # Inicializa o processador com a configuração
     processor = StreamProcessor(full_config)
     
-    # Get streams
+    # Busca os streams
     streams = await processor.get_streams(imdb_id, content_type)
     
     return {"streams": streams}
-
-@router.post("/configure/save")
-async def save_configuration(request: Request):
-    """Save configuration and return install URL"""
-    try:
-        data = await request.json()
-        
-        # Build configuration object
-        config = {
-            "resolution": data.get("resolution", "all"),
-            "language": data.get("language", "all"),
-            "layout": data.get("layout", "cinematic"),
-            "febox_cookie": data.get("febox_cookie")
-        }
-        
-        # Encode configuration to base64
-        config_json = json.dumps(config)
-        config_base64 = base64.b64encode(config_json.encode()).decode()
-        
-        # Generate install URL
-        install_url = f"{request.base_url}{config_base64}/manifest.json"
-        
-        return {"install_url": install_url}
-    
-    except Exception as e:
-        logger.error(f"Config save error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
