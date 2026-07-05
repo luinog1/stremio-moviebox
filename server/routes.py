@@ -78,6 +78,12 @@ async def handle_stream(request: Request, type: str, id: str, config_str: str):
     pref_lang = config.get("language", "all")
     layout = config.get("layout", "cinematic")
 
+    # Normalize list-form values from the web UI config (e.g. resolution: [])
+    if isinstance(min_res, list):
+        min_res = min_res[0] if min_res else "all"
+    if isinstance(pref_lang, list):
+        pref_lang = pref_lang[0] if pref_lang else "all"
+
     parts = id.split(":")
     imdb_id = parts[0]
     season = 1
@@ -168,7 +174,8 @@ async def handle_stream(request: Request, type: str, id: str, config_str: str):
         if layout == "torrentio":
             desc = desc.replace("\n", " | ")
         elif layout == "badges":
-            desc = f"🎥 {resolution}p | 🔊 {audio_lang or 'Unknown'}\n{desc}"
+            from streaming.helpers import _format_resolution as _fr
+            desc = f"🎥 {_fr(resolution)} | 🔊 {audio_lang or 'Unknown'}\n{desc}"
 
         streams.append(
             {
