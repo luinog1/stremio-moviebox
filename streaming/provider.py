@@ -1,16 +1,14 @@
-"""
-Stream Provider - Updated to preserve 4K streams and proper filtering
-"""
 import logging
+import asyncio
 from typing import List, Dict, Any, Optional
-# Corrigido o caminho do import para apontar para moviebox.mobile.models.downloadables
-from moviebox.mobile.models.downloadables import MovieBoxClient, MovieBoxStream
-import re
+from moviebox.mobile.models.downloadables import RootDownloadableFilesDetailModel, DownloadableFile
+from moviebox.mobile.main import MobileClient  # Assumindo que este é o cliente principal da pasta mobile
+import httpx
 
 logger = logging.getLogger(__name__)
 
 class StreamProcessor:
-    """Process and filter streams from MovieBox"""
+    """Processa e filtra streams do MovieBox com suporte a 4K e FEBOX Cookie"""
     
     RESOLUTION_PRIORITY = {
         "4k": 4,
@@ -27,48 +25,53 @@ class StreamProcessor:
         self.language = config.get("language", "all")
         self.febox_cookie = config.get("febox_cookie")
         
-        self.client = MovieBoxClient(febox_cookie=self.febox_cookie)
-    
     async def get_streams(self, imdb_id: str, content_type: str = "movie") -> List[Dict[str, Any]]:
-        """Get streams for a given IMDB ID"""
-        logger.info(f"Fetching streams for {imdb_id} with config: {self.config}")
+        """Obtém os streams para o conteúdo solicitado"""
+        logger.info(f"Buscando streams para {imdb_id} com config: {self.config}")
         
-        moviebox_streams = await self.client.search_content("", imdb_id)
+        streams_data = []
         
-        stremio_streams = []
-        for stream in moviebox_streams:
-            stremio_stream = self._convert_to_stremio_format(stream)
-            if stremio_stream:
-                stremio_streams.append(stremio_stream)
+        try:
+            # Inicializa o cliente mobile original do repositório
+            client = MobileClient()
+            
+            # Se houver cookie FEBOX, configuramos no cliente para liberar o 4K
+            if self.febox_cookie:
+                client.session.cookies.set("FEBOX", self.febox_cookie)
+                logger.info("FEBOX cookie configurado para acesso 4K")
+            
+            # Busca o conteúdo (este método varia conforme a base original, geralmente usa imdb_id ou tmdb_id)
+            # Assumindo que client.get_downloadables retorna um modelo compatível
+            downloadables = await client.get_downloadables(imdb_id=imdb_id)
+            
+            # Extrai os streams
+            for item in downloadables.files:
+                quality = self._extract_quality(item)
+                stream = {
+                    "title": f"{downloadables.title} | {quality} | {item.language or 'Unknown'}",
+                    "url": item.url,
+                    "quality": quality,
+                    "isFree": True,
+                    "source": "moviebox"
+                }
+                streams_data.append(stream)
+                
+        except Exception as e:
+            logger.error(f"Erro ao buscar streams do MovieBox: {e}")
         
-        filtered_streams = self._filter_streams(stremio_streams)
+        # Aplica os filtros de resolução e idioma
+        filtered_streams = self._filter_streams(streams_data)
         sorted_streams = self._sort_by_quality(filtered_streams)
         
-        logger.info(f"Returning {len(sorted_streams)} streams for {imdb_id}")
+        logger.info(f"Retornando {len(sorted_streams)} streams para {imdb_id}")
         return sorted_streams
     
-    def _convert_to_stremio_format(self, stream: MovieBoxStream) -> Optional[Dict[str, Any]]:
-        """Convert MovieBox stream to Stremio stream format"""
-        quality_tag = self._get_quality_tag(stream.quality)
-        
-        title_parts = [stream.title]
-        if quality_tag:
-            title_parts.append(quality_tag)
-        if stream.language:
-            title_parts.append(stream.language)
-        
-        return {
-            "name": "MovieBox",
-            "title": " | ".join(title_parts),
-            "url": stream.url,
-            "quality": quality_tag,
-            "isFree": True,
-            "source": stream.source
-        }
-    
-    def _get_quality_tag(self, quality: str) -> str:
-        """Get standardized quality tag"""
+    def _extract_quality(self, item) -> str:
+        """Extrai a resolução do stream"""
+        # Verifica múltiplos campos possíveis onde a qualidade pode estar
+        quality = getattr(item, 'quality', '') or getattr(item, 'resolution', '') or "1080p"
         quality_lower = quality.lower()
+        
         if "4k" in quality_lower or "2160" in quality_lower:
             return "4K"
         elif "1080" in quality_lower:
@@ -77,11 +80,10 @@ class StreamProcessor:
             return "720p"
         elif "480" in quality_lower:
             return "480p"
-        else:
-            return quality
+        return quality
     
     def _filter_streams(self, streams: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Filter streams based on configuration"""
+        """Filtra streams baseado na configuração"""
         filtered = []
         
         for stream in streams:
@@ -94,7 +96,6 @@ class StreamProcessor:
         return filtered
     
     def _meets_min_resolution(self, quality: str) -> bool:
-        """Check if stream meets minimum resolution requirement"""
         if self.min_resolution == "all":
             return True
         
@@ -105,9 +106,17 @@ class StreamProcessor:
         return stream_priority >= min_priority
     
     def _meets_language_filter(self, stream: Dict[str, Any]) -> bool:
-        """Check if stream meets language filter"""
         if self.language == "all":
             return True
         
         title = stream.get("title", "").lower()
-        language = self.language.lower
+        language = self.language.lower()
+        return language in title
+    
+    def _sort_by_quality(self, streams: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Ordena streams por qualidade (maior primeiro)"""
+        def get_priority(stream):
+            quality = stream.get("quality", "").lower()
+            return self.RESOLUTION_PRIORITY.get(quality, 0)
+        
+        return sorted(streams, key=get_priority, reverse=True)
