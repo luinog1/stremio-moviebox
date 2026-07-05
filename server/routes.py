@@ -78,7 +78,7 @@ async def handle_stream(request: Request, type: str, id: str, config_str: str):
     pref_lang = config.get("language", "all")
     layout = config.get("layout", "cinematic")
 
-    # Normalize list-form values from the web UI config (e.g. resolution: [])
+    # Normalize list-form values from web UI config (e.g. resolution: [])
     if isinstance(min_res, list):
         min_res = min_res[0] if min_res else "all"
     if isinstance(pref_lang, list):
