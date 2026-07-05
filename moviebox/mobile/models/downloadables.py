@@ -96,7 +96,7 @@ class RootCaptionFileMetadata(BaseModel):
 class CollectionResolutionModel(BaseModel):
     model_config = MODEL_CONFIG
 
-    resolution: ResolutionType
+    resolution: int
     average_size: str = Field(alias="averageSize")
     ep_num: int = Field(alias="epNum")
     require_member_type: int = Field(alias="requireMemberType")
@@ -115,7 +115,7 @@ class RootDownloadableFilesDetailModel(BaseModel):
     total_size: str = Field(alias="totalSize")
     total_episode: int = Field(alias="totalEpisode")
     position: int
-    resolution: ResolutionType
+    resolution: int
     collection_resolutions: list[CollectionResolutionModel] = Field(
         alias="collectionResolutions"
     )
@@ -205,9 +205,12 @@ class RootDownloadableFilesDetailModel(BaseModel):
         """
         resolution_list_map = {}
         for item in self.list:
-            resolution_list_map[CustomResolutionType(f"{item.resolution}P")] = (
-                item
-            )
+            key = f"{item.resolution}P"
+            try:
+                resolution_list_map[CustomResolutionType(key)] = item
+            except ValueError:
+                # resolution not in enum (e.g. 2160P before patch) — use string key
+                resolution_list_map[key] = item
 
         return resolution_list_map
 
