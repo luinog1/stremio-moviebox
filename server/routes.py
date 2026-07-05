@@ -1,20 +1,9 @@
 import base64
 import json
-import asyncio
-import re
-from typing import Annotated
-from urllib.parse import quote
 
-from fastapi import APIRouter, Request, HTTPException, Path
+from fastapi import APIRouter, Request
 
 from server.manifest import Manifest, get_manifest
-from streaming.helpers import (
-    generate_stream_description,
-    generate_stream_title,
-    get_stream_filename,
-)
-from streaming.metadata import resolve_imdb_id
-from streaming.provider import extract_streams, find_all_matches
 
 router = APIRouter()
 
@@ -45,6 +34,23 @@ async def manifest_endpoint_no_config(request: Request) -> Manifest:
     return manifest
 
 
+import asyncio
+import re
+from typing import Annotated
+from urllib.parse import quote
+
+from fastapi import HTTPException, Path
+
+from streaming.helpers import (
+    generate_stream_description,
+    generate_stream_title,
+    get_stream_filename,
+)
+from streaming.metadata import resolve_imdb_id
+from streaming.provider import extract_streams, find_all_matches
+from streaming.febbox import get_febbox_streams
+
+
 @router.get("/{config}/stream/{type}/{id}.json")
 async def stream_endpoint_with_config(
     request: Request,
@@ -72,6 +78,13 @@ async def handle_stream(request: Request, type: str, id: str, config_str: str):
     min_res = config.get("resolution", "all")
     pref_lang = config.get("language", "all")
     layout = config.get("layout", "cinematic")
+
+    # Normalize list-form values from web UI config (e.g. resolution: [])
+    if isinstance(min_res, list):
+        min_res = min_res[0] if min_res else "all"
+    if isinstance(pref_lang, list):
+        pref_lang = pref_lang[0] if pref_lang else "all"
+    febbox_cookie = str(config.get("febbox_cookie", "") or "").strip()
 
     parts = id.split(":")
     imdb_id = parts[0]
@@ -163,7 +176,8 @@ async def handle_stream(request: Request, type: str, id: str, config_str: str):
         if layout == "torrentio":
             desc = desc.replace("\n", " | ")
         elif layout == "badges":
-            desc = f"🎥 {resolution}p | 🔊 {audio_lang or 'Unknown'}\n{desc}"
+            from streaming.helpers import _format_resolution as _fr
+            desc = f"🎥 {_fr(resolution)} | 🔊 {audio_lang or 'Unknown'}\n{desc}"
 
         streams.append(
             {
@@ -182,5 +196,59 @@ async def handle_stream(request: Request, type: str, id: str, config_str: str):
                 },
             }
         )
+
+    # ── FebBox provider (4K/HDR) ─────────────────────────────────────────
+    if febbox_cookie:
+        try:
+            fb_streams = await get_febbox_streams(
+                title=title,
+                year=year,
+                media_type=type,
+                ui_cookie=febbox_cookie,
+                season=season,
+                episode=episode,
+            )
+            for fb in fb_streams:
+                url_str = fb.url
+                base_url = url_str.split("?")[0] if "?" in url_str else url_str
+                if base_url in seen_urls:
+                    continue
+                seen_urls.add(base_url)
+
+                resolution = fb.resolution
+                size_mb = fb.size_mb
+
+                if min_res == "4k" and resolution < 2160:
+                    continue
+                elif min_res == "1080p" and resolution < 1080:
+                    continue
+                elif min_res == "720p" and resolution < 720:
+                    continue
+
+                # Build description
+                from streaming.helpers import generate_stream_description, get_stream_filename
+                desc = generate_stream_description(
+                    resolution,
+                    int(size_mb),
+                    audio_langs=None,
+                    subtitle_langs=None,
+                )
+                if layout == "torrentio":
+                    desc = desc.replace("\n", " | ")
+
+                streams.append(
+                    {
+                        "name": "FebBox",
+                        "title": desc,
+                        "url": url_str,
+                        "behaviorHints": {
+                            "notWebReady": True,
+                            "filename": get_stream_filename(url_str) or fb.filename,
+                        },
+                    }
+                )
+        except Exception:
+            pass
+    # ── end FebBox ───────────────────────────────────────────────────────
 
     return {"streams": streams}
