@@ -30,10 +30,15 @@ from moviebox.web.streams import (
 TITLE_LANG_PATTERN = re.compile(r"\[([^\]]+)\]\s*$|\(([A-Za-z\s]+)\)\s*$")
 
 
-async def search_v2(title: str, year: str, is_movie: bool):
+async def search_v2(title: str, year: str, is_movie: bool, febox_cookie: Optional[str] = None):
     matches = []
     try:
         s = SessionV2()
+        if febox_cookie:
+            try:
+                s.headers["Cookie"] = f"FEBOX={febox_cookie}"
+            except Exception:
+                pass
         st = SubjectTypeV2.MOVIES if is_movie else SubjectTypeV2.TV_SERIES
         sv = SearchV2(s, query=title, subject_type=st, per_page=10)
         res = await sv.get_content_model()
@@ -49,10 +54,15 @@ async def search_v2(title: str, year: str, is_movie: bool):
     return matches
 
 
-async def search_v1(title: str, year: str, is_movie: bool):
+async def search_v1(title: str, year: str, is_movie: bool, febox_cookie: Optional[str] = None):
     matches = []
     try:
         s = SessionV1()
+        if febox_cookie:
+            try:
+                s.headers["Cookie"] = f"FEBOX={febox_cookie}"
+            except Exception:
+                pass
         st = SubjectTypeV1.MOVIES if is_movie else SubjectTypeV1.TV_SERIES
         sv = SearchV1(s, query=title, subject_type=st, per_page=10)
         res = await sv.get_content_model()
@@ -68,10 +78,15 @@ async def search_v1(title: str, year: str, is_movie: bool):
     return matches
 
 
-async def search_v3(title: str, year: str, is_movie: bool):
+async def search_v3(title: str, year: str, is_movie: bool, febox_cookie: Optional[str] = None):
     matches = []
     try:
         s = SessionV3()
+        if febox_cookie:
+            try:
+                s.headers["Cookie"] = f"FEBOX={febox_cookie}"
+            except Exception:
+                pass
         await s.start()
         st = SubjectTypeV3.MOVIES if is_movie else SubjectTypeV3.TV_SERIES
         sv = SearchV3(s, query=title, subject_type=st, per_page=10)
@@ -88,11 +103,11 @@ async def search_v3(title: str, year: str, is_movie: bool):
     return matches
 
 
-async def find_all_matches(title: str, year: str, is_movie: bool) -> list[dict]:
+async def find_all_matches(title: str, year: str, is_movie: bool, febox_cookie: Optional[str] = None) -> list[dict]:
     results = await asyncio.gather(
-        search_v2(title, year, is_movie),
-        search_v1(title, year, is_movie),
-        search_v3(title, year, is_movie),
+        search_v2(title, year, is_movie, febox_cookie),
+        search_v1(title, year, is_movie, febox_cookie),
+        search_v3(title, year, is_movie, febox_cookie),
     )
     matches = []
     for r in results:
