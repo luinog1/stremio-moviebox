@@ -1,7 +1,6 @@
 import asyncio
 import re
 from typing import Any, Dict, List, Optional
-import httpx
 
 from moviebox.legacy.constants import SubjectType as SubjectTypeV1
 from moviebox.legacy.core import Search as SearchV1
@@ -29,44 +28,10 @@ from moviebox.web.streams import (
 
 TITLE_LANG_PATTERN = re.compile(r"\[([^\]]+)\]\s*$|\(([A-Za-z\s]+)\)\s*$")
 
-def apply_cookie(session, febox_cookie: str, version: str):
-    """Tenta injetar o cookie no cliente httpx interno de várias formas"""
-    if not febox_cookie:
-        return
-        
-    # Tenta achar um cliente httpx interno
-    for attr_name in ['client', 'http_client', 'session', '_client', '_session']:
-        if hasattr(session, attr_name):
-            client = getattr(session, attr_name)
-            if client is not None:
-                try:
-                    client.headers["Cookie"] = f"FEBOX={febox_cookie}"
-                    print(f"DEBUG: Cookie aplicado via session.{attr_name}.headers ({version})")
-                    return
-                except Exception:
-                    pass
-
-    if hasattr(session, 'headers'):
-        try:
-            session.headers["Cookie"] = f"FEBOX={febox_cookie}"
-            print(f"DEBUG: Cookie aplicado via session.headers ({version})")
-            return
-        except Exception:
-            pass
-
-    if hasattr(session, 'cookies'):
-        try:
-            session.cookies.set("FEBOX", febox_cookie)
-            print(f"DEBUG: Cookie aplicado via session.cookies ({version})")
-            return
-        except Exception:
-            pass
-
-async def search_v2(title: str, year: str, is_movie: bool, febox_cookie: Optional[str] = None):
+async def search_v2(title: str, year: str, is_movie: bool):
     matches = []
     try:
         s = SessionV2()
-        apply_cookie(s, febox_cookie, "V2")
         st = SubjectTypeV2.MOVIES if is_movie else SubjectTypeV2.TV_SERIES
         sv = SearchV2(s, query=title, subject_type=st, per_page=10)
         res = await sv.get_content_model()
@@ -77,16 +42,15 @@ async def search_v2(title: str, year: str, is_movie: bool, febox_cookie: Optiona
                 count += 1
                 if count >= 3:
                     break
-    except Exception as e:
-        print(f"DEBUG ERRO V2: {e}")
+    except Exception:
+        pass
     return matches
 
 
-async def search_v1(title: str, year: str, is_movie: bool, febox_cookie: Optional[str] = None):
+async def search_v1(title: str, year: str, is_movie: bool):
     matches = []
     try:
         s = SessionV1()
-        apply_cookie(s, febox_cookie, "V1")
         st = SubjectTypeV1.MOVIES if is_movie else SubjectTypeV1.TV_SERIES
         sv = SearchV1(s, query=title, subject_type=st, per_page=10)
         res = await sv.get_content_model()
@@ -97,18 +61,16 @@ async def search_v1(title: str, year: str, is_movie: bool, febox_cookie: Optiona
                 count += 1
                 if count >= 3:
                     break
-    except Exception as e:
-        print(f"DEBUG ERRO V1: {e}")
+    except Exception:
+        pass
     return matches
 
 
-async def search_v3(title: str, year: str, is_movie: bool, febox_cookie: Optional[str] = None):
+async def search_v3(title: str, year: str, is_movie: bool):
     matches = []
     try:
         s = SessionV3()
         await s.start()
-        apply_cookie(s, febox_cookie, "V3")
-        
         st = SubjectTypeV3.MOVIES if is_movie else SubjectTypeV3.TV_SERIES
         sv = SearchV3(s, query=title, subject_type=st, per_page=10)
         res = await sv.get_content_model()
@@ -119,16 +81,16 @@ async def search_v3(title: str, year: str, is_movie: bool, febox_cookie: Optiona
                 count += 1
                 if count >= 3:
                     break
-    except Exception as e:
-        print(f"DEBUG ERRO V3: {e}")
+    except Exception:
+        pass
     return matches
 
 
-async def find_all_matches(title: str, year: str, is_movie: bool, febox_cookie: Optional[str] = None) -> list[dict]:
+async def find_all_matches(title: str, year: str, is_movie: bool) -> list[dict]:
     results = await asyncio.gather(
-        search_v2(title, year, is_movie, febox_cookie),
-        search_v1(title, year, is_movie, febox_cookie),
-        search_v3(title, year, is_movie, febox_cookie),
+        search_v2(title, year, is_movie),
+        search_v1(title, year, is_movie),
+        search_v3(title, year, is_movie),
     )
     matches = []
     for r in results:
@@ -200,31 +162,38 @@ async def extract_streams(
             return ([], match)
 
     async def fetch_v3(match):
-        streams = []
+        # Lógica inspirada no NebulaStreams-V2: busca todas as resoluções mapeadas
+        resolutions_to_try = [
+            CustomResolutionTypeV3._2160P,
+            CustomResolutionTypeV3._1080P,
+            CustomResolutionTypeV3._720P,
+            CustomResolutionTypeV3._480P,
+            CustomResolutionTypeV3._360P,
+        ]
         
-        # 1. Tenta buscar explicitamente o 4K (2160P)
+        streams = []
+        for res_type in resolutions_to_try:
+            try:
+                dl = MobileVideo(match["session"], resolution=res_type)
+                if is_movie:
+                    res = await dl.get_content_model(
+                        subject_id=str(match["item"].subject_id)
+                    )
+                else:
+                    res = await dl.get_content_model(
+                        subject_id=str(match["item"].subject_id),
+                        season=season,
+                        episode=episode,
+                    )
+                streams.extend(res.list)
+            except Exception:
+                pass
+                
         try:
-            dl = MobileVideo(match["session"], resolution=CustomResolutionTypeV3._2160P)
-            if is_movie:
-                res = await dl.get_content_model(subject_id=str(match["item"].subject_id))
-            else:
-                res = await dl.get_content_model(subject_id=str(match["item"].subject_id), season=season, episode=episode)
-            streams.extend(res.list)
+            await match["session"].close()
         except Exception:
             pass
-
-        # 2. Tenta buscar o BEST
-        try:
-            dl = MobileVideo(match["session"], resolution=CustomResolutionTypeV3.BEST)
-            if is_movie:
-                res = await dl.get_content_model(subject_id=str(match["item"].subject_id))
-            else:
-                res = await dl.get_content_model(subject_id=str(match["item"].subject_id), season=season, episode=episode)
-            streams.extend(res.list)
-        except Exception:
-            pass
-
-        # Removido o close() daqui para evitar quebrar outras tarefas concorrentes
+            
         return (streams, match)
 
     for match in matches:
@@ -249,4 +218,13 @@ async def extract_streams(
                 }
             )
 
-    return all_streams
+    # Remover duplicados baseado na URL
+    seen_urls = set()
+    unique_streams = []
+    for stream in all_streams:
+        url = str(stream["download"].url)
+        if url not in seen_urls:
+            seen_urls.add(url)
+            unique_streams.append(stream)
+
+    return unique_streams
