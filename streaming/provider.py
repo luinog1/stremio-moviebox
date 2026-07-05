@@ -1,6 +1,7 @@
 import asyncio
 import re
 from typing import Any, Dict, List, Optional
+import httpx
 
 from moviebox.legacy.constants import SubjectType as SubjectTypeV1
 from moviebox.legacy.core import Search as SearchV1
@@ -26,20 +27,53 @@ from moviebox.web.streams import (
     DownloadableTVSeriesFilesDetail as WebTV,
 )
 
-# Pattern to extract language from title brackets e.g. "Solo Leveling [Hindi]" or "(Hindi Dubbed)"
 TITLE_LANG_PATTERN = re.compile(r"\[([^\]]+)\]\s*$|\(([A-Za-z\s]+)\)\s*$")
 
+def apply_cookie(session, febox_cookie: str, version: str):
+    """Tenta injetar o cookie no cliente httpx interno de várias formas"""
+    if not febox_cookie:
+        return
+        
+    cookie_applied = False
+    
+    # Tenta setar diretamente nos headers
+    if hasattr(session, 'headers'):
+        try:
+            session.headers["Cookie"] = f"FEBOX={febox_cookie}"
+            print(f"DEBUG: Cookie aplicado via session.headers ({version})")
+            return
+        except Exception:
+            pass
+
+    # Tenta achar um cliente httpx interno (ex: self.client, self.http_client, self.session)
+    for attr_name in ['client', 'http_client', 'session', '_client', '_session']:
+        if hasattr(session, attr_name):
+            client = getattr(session, attr_name)
+            if isinstance(client, httpx.AsyncClient):
+                try:
+                    client.headers["Cookie"] = f"FEBOX={febox_cookie}"
+                    print(f"DEBUG: Cookie aplicado via session.{attr_name}.headers ({version})")
+                    return
+                except Exception:
+                    pass
+
+    # Tenta setar via cookies
+    if hasattr(session, 'cookies'):
+        try:
+            session.cookies.set("FEBOX", febox_cookie)
+            print(f"DEBUG: Cookie aplicado via session.cookies ({version})")
+            return
+        except Exception:
+            pass
+
+    # Se nada funcionou, vamos ver o que tem dentro do objeto para eu descobrir o caminho
+    print(f"DEBUG ERRO: Falhou ao aplicar cookie na {version}. Atributos do objeto: {vars(session).keys()}")
 
 async def search_v2(title: str, year: str, is_movie: bool, febox_cookie: Optional[str] = None):
     matches = []
     try:
         s = SessionV2()
-        if febox_cookie:
-            try:
-                s.headers["Cookie"] = f"FEBOX={febox_cookie}"
-                print("DEBUG: FEBOX cookie aplicado na sessão V2")
-            except Exception as e:
-                print(f"DEBUG ERRO: Não foi possível aplicar cookie na V2: {e}")
+        apply_cookie(s, febox_cookie, "V2")
         st = SubjectTypeV2.MOVIES if is_movie else SubjectTypeV2.TV_SERIES
         sv = SearchV2(s, query=title, subject_type=st, per_page=10)
         res = await sv.get_content_model()
@@ -59,12 +93,7 @@ async def search_v1(title: str, year: str, is_movie: bool, febox_cookie: Optiona
     matches = []
     try:
         s = SessionV1()
-        if febox_cookie:
-            try:
-                s.headers["Cookie"] = f"FEBOX={febox_cookie}"
-                print("DEBUG: FEBOX cookie aplicado na sessão V1")
-            except Exception as e:
-                print(f"DEBUG ERRO: Não foi possível aplicar cookie na V1: {e}")
+        apply_cookie(s, febox_cookie, "V1")
         st = SubjectTypeV1.MOVIES if is_movie else SubjectTypeV1.TV_SERIES
         sv = SearchV1(s, query=title, subject_type=st, per_page=10)
         res = await sv.get_content_model()
@@ -84,12 +113,7 @@ async def search_v3(title: str, year: str, is_movie: bool, febox_cookie: Optiona
     matches = []
     try:
         s = SessionV3()
-        if febox_cookie:
-            try:
-                s.headers["Cookie"] = f"FEBOX={febox_cookie}"
-                print("DEBUG: FEBOX cookie aplicado na sessão V3")
-            except Exception as e:
-                print(f"DEBUG ERRO: Não foi possível aplicar cookie na V3: {e}")
+        apply_cookie(s, febox_cookie, "V3")
         await s.start()
         st = SubjectTypeV3.MOVIES if is_movie else SubjectTypeV3.TV_SERIES
         sv = SearchV3(s, query=title, subject_type=st, per_page=10)
@@ -121,7 +145,6 @@ async def find_all_matches(title: str, year: str, is_movie: bool, febox_cookie: 
 
 
 def _extract_title_language(title: str) -> str | None:
-    """Extract language tag from title brackets, e.g. 'Solo Leveling [Hindi]' -> 'Hindi'."""
     match = TITLE_LANG_PATTERN.search(title)
     if match:
         return match.group(1) or match.group(2)
@@ -129,10 +152,8 @@ def _extract_title_language(title: str) -> str | None:
 
 
 def extract_match_language_info(match: dict) -> dict:
-    """Extract audio language and subtitle languages from a single matched item."""
     item = match["item"]
     version = match["version"]
-
     audio_lang = None
     subtitle_langs = []
     seen_subs = set()
@@ -142,7 +163,6 @@ def extract_match_language_info(match: dict) -> dict:
     if lang_from_title:
         audio_lang = lang_from_title
 
-    # Extract subtitle languages
     if version in ("v2", "v1", "v3"):
         subs = getattr(item, "subtitles", None)
         if subs:
@@ -234,7 +254,6 @@ async def extract_streams(
     for downloads, match in results:
         lang_info = extract_match_language_info(match)
         for dl in downloads:
-            # Log de qual resolução foi encontrada
             print(f"DEBUG: Stream encontrado - Resolução: {getattr(dl, 'resolution', 'Desconhecida')}")
             all_streams.append(
                 {
