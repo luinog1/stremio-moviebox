@@ -34,8 +34,18 @@ def apply_cookie(session, febox_cookie: str, version: str):
     if not febox_cookie:
         return
         
-    cookie_applied = False
-    
+    # Tenta achar um cliente httpx interno (ex: self.client, self.http_client, self.session)
+    for attr_name in ['client', 'http_client', 'session', '_client', '_session']:
+        if hasattr(session, attr_name):
+            client = getattr(session, attr_name)
+            if client is not None:
+                try:
+                    client.headers["Cookie"] = f"FEBOX={febox_cookie}"
+                    print(f"DEBUG: Cookie aplicado via session.{attr_name}.headers ({version})")
+                    return
+                except Exception:
+                    pass
+
     # Tenta setar diretamente nos headers
     if hasattr(session, 'headers'):
         try:
@@ -44,18 +54,6 @@ def apply_cookie(session, febox_cookie: str, version: str):
             return
         except Exception:
             pass
-
-    # Tenta achar um cliente httpx interno (ex: self.client, self.http_client, self.session)
-    for attr_name in ['client', 'http_client', 'session', '_client', '_session']:
-        if hasattr(session, attr_name):
-            client = getattr(session, attr_name)
-            if isinstance(client, httpx.AsyncClient):
-                try:
-                    client.headers["Cookie"] = f"FEBOX={febox_cookie}"
-                    print(f"DEBUG: Cookie aplicado via session.{attr_name}.headers ({version})")
-                    return
-                except Exception:
-                    pass
 
     # Tenta setar via cookies
     if hasattr(session, 'cookies'):
@@ -66,7 +64,6 @@ def apply_cookie(session, febox_cookie: str, version: str):
         except Exception:
             pass
 
-    # Se nada funcionou, vamos ver o que tem dentro do objeto para eu descobrir o caminho
     print(f"DEBUG ERRO: Falhou ao aplicar cookie na {version}. Atributos do objeto: {vars(session).keys()}")
 
 async def search_v2(title: str, year: str, is_movie: bool, febox_cookie: Optional[str] = None):
@@ -113,8 +110,12 @@ async def search_v3(title: str, year: str, is_movie: bool, febox_cookie: Optiona
     matches = []
     try:
         s = SessionV3()
-        apply_cookie(s, febox_cookie, "V3")
-        await s.start()
+        await s.start() # Inicializa a sessão PRIMEIRO
+        apply_cookie(s, febox_cookie, "V3") # Aplica o cookie DEPOIS de inicializar
+        
+        # Log para vermos quais resoluções a V3 suporta
+        print(f"DEBUG V3: Resoluções disponíveis no Enum: {[e.name for e in CustomResolutionTypeV3]}")
+        
         st = SubjectTypeV3.MOVIES if is_movie else SubjectTypeV3.TV_SERIES
         sv = SearchV3(s, query=title, subject_type=st, per_page=10)
         res = await sv.get_content_model()
