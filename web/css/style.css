@@ -483,3 +483,75 @@ body {
 [data-theme="dark"]::view-transition-new(root) {
   z-index: 1;
 }
+
+/* ── FebBox Cookie field ─────────────────────────────────── */
+.form-hint {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.hint-link {
+    color: var(--accent-color, #7c6af7);
+    text-decoration: none;
+}
+
+.hint-link:hover {
+    text-decoration: underline;
+}
+
+.form-hint code {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.85em;
+}
+
+.febbox-input-wrapper {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.febbox-input {
+    flex: 1;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    font-size: 0.9375rem;
+    font-family: inherit;
+    outline: none;
+    transition: background 0.4s ease, border-color 0.3s ease, color 0.4s ease;
+}
+
+.febbox-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
+.febbox-input:focus {
+    border-color: var(--accent-color, #7c6af7);
+}
+
+.febbox-toggle {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--secondary-color);
+    color: var(--secondary-text);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.3s ease, background 0.4s ease, color 0.4s ease;
+}
+
+.febbox-toggle:hover {
+    background: var(--secondary-hover);
+}
