@@ -84,48 +84,48 @@
         <h1>MovieBox Addon</h1>
         
         <div class="cookie-section">
-            <h3>🔑 FEBOX Cookie (Optional)</h3>
+            <h3>🔑 FEBOX Cookie (Opcional)</h3>
             <p style="font-size: 0.9em; color: #ccc;">
-                For 4K streams, provide your FEBOX cookie from MovieBox.
-                Without this, only 1080p streams will be available.
+                Para streams em 4K, forneça seu cookie FEBOX do MovieBox.
+                Sem isso, apenas streams em 1080p estarão disponíveis.
             </p>
             <div class="form-group">
-                <label for="febox_cookie">FEBOX Cookie Value:</label>
+                <label for="febox_cookie">Valor do Cookie FEBOX:</label>
                 <textarea id="febox_cookie" rows="3" placeholder="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."></textarea>
                 <div class="help-text">
-                    Paste your FEBOX cookie here. Get it from your browser cookies when logged into MovieBox.
+                    Cole seu cookie FEBOX aqui.
                 </div>
             </div>
         </div>
         
         <div class="form-group">
-            <label for="resolution">Minimum Resolution:</label>
+            <label for="resolution">Resolução Mínima:</label>
             <select id="resolution">
-                <option value="all">All Resolutions</option>
-                <option value="4k">4K Only</option>
-                <option value="1080p">1080p and above</option>
-                <option value="720p">720p and above</option>
-                <option value="480p">480p and above</option>
+                <option value="all">Todas Resoluções</option>
+                <option value="4k">Somente 4K</option>
+                <option value="1080p">1080p e acima</option>
+                <option value="720p">720p e acima</option>
+                <option value="480p">480p e acima</option>
             </select>
             <div class="help-text">
-                Select "4K Only" to filter for 4K streams (requires FEBOX cookie).
+                Selecione "Somente 4K" para filtrar streams 4K (requer cookie FEBOX).
             </div>
         </div>
         
         <div class="form-group">
-            <label for="language">Language:</label>
+            <label for="language">Idioma:</label>
             <select id="language">
-                <option value="all">All Languages</option>
-                <option value="en">English</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-                <option value="pt">Portuguese</option>
+                <option value="all">Todos Idiomas</option>
+                <option value="en">Inglês</option>
+                <option value="es">Espanhol</option>
+                <option value="fr">Francês</option>
+                <option value="de">Alemão</option>
+                <option value="pt">Português</option>
             </select>
         </div>
         
         <div class="form-group">
-            <label for="layout">Layout Style:</label>
+            <label for="layout">Estilo de Layout:</label>
             <select id="layout">
                 <option value="cinematic">Cinematic</option>
                 <option value="compact">Compact</option>
@@ -133,7 +133,7 @@
             </select>
         </div>
         
-        <button class="btn" onclick="installAddon()">Install Addon</button>
+        <button class="btn" onclick="installAddon()">Instalar Addon</button>
     </div>
 
     <script>
@@ -145,23 +145,16 @@
                 febox_cookie: document.getElementById('febox_cookie').value || null
             };
             
-            // Send configuration to server
-            fetch('/configure/save', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(config)
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Redirect to Stremio install URL
-                window.location.href = data.install_url;
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error saving configuration. Check console for details.');
-            });
+            // Converter configuração para base64 no próprio navegador
+            const config_json = JSON.stringify(config);
+            const config_base64 = btoa(config_json);
+            
+            // Construir URL de instalação
+            const baseUrl = window.location.origin;
+            const installUrl = `${baseUrl}/${config_base64}/manifest.json`;
+            
+            // Redirecionar para o Stremio
+            window.location.href = installUrl;
         }
     </script>
 </body>
