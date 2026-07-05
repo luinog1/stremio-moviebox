@@ -1,188 +1,230 @@
-import base64
-import json
 import asyncio
 import re
-from typing import Annotated
-from urllib.parse import quote
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Request, HTTPException, Path
-
-from server.manifest import Manifest, get_manifest
-from streaming.helpers import (
-    generate_stream_description,
-    generate_stream_title,
-    get_stream_filename,
+from moviebox.legacy.constants import SubjectType as SubjectTypeV1
+from moviebox.legacy.core import Search as SearchV1
+from moviebox.legacy.requests import Session as SessionV1
+from moviebox.legacy.streams import (
+    DownloadableMovieFilesDetail as LegacySingle,
+    DownloadableTVSeriesFilesDetail as LegacyTV,
 )
-from streaming.metadata import resolve_imdb_id
-from streaming.provider import extract_streams, find_all_matches
+from moviebox.mobile.constants import (
+    CustomResolutionType as CustomResolutionTypeV3,
+    SubjectType as SubjectTypeV3,
+)
+from moviebox.mobile.core import (
+    DownloadableVideoFilesDetail as MobileVideo,
+    Search as SearchV3,
+)
+from moviebox.mobile.http_client import ProviderHttpClient as SessionV3
+from moviebox.web.constants import SubjectType as SubjectTypeV2
+from moviebox.web.core import Search as SearchV2
+from moviebox.web.requests import Session as SessionV2
+from moviebox.web.streams import (
+    DownloadableSingleFilesDetail as WebSingle,
+    DownloadableTVSeriesFilesDetail as WebTV,
+)
 
-router = APIRouter()
+TITLE_LANG_PATTERN = re.compile(r"\[([^\]]+)\]\s*$|\(([A-Za-z\s]+)\)\s*$")
 
-
-def parse_config(config_str: str) -> dict:
+async def search_v2(title: str, year: str, is_movie: bool):
+    matches = []
     try:
-        padding = 4 - (len(config_str) % 4)
-        if padding != 4:
-            config_str += "=" * padding
-        decoded = base64.urlsafe_b64decode(config_str).decode("utf-8")
-        return json.loads(decoded)
+        s = SessionV2()
+        st = SubjectTypeV2.MOVIES if is_movie else SubjectTypeV2.TV_SERIES
+        sv = SearchV2(s, query=title, subject_type=st, per_page=10)
+        res = await sv.get_content_model()
+        count = 0
+        for item in res.items:
+            if not year or str(item.releaseDate.year) == str(year):
+                matches.append({"item": item, "session": s, "version": "v2"})
+                count += 1
+                if count >= 3:
+                    break
     except Exception:
-        return {}
+        pass
+    return matches
 
 
-@router.get("/{config}/manifest.json")
-async def manifest_endpoint(request: Request, config: str) -> Manifest:
-    manifest = get_manifest()
-    base = str(request.base_url)
-    manifest.logo = base + "logo.png"
-    return manifest
+async def search_v1(title: str, year: str, is_movie: bool):
+    matches = []
+    try:
+        s = SessionV1()
+        st = SubjectTypeV1.MOVIES if is_movie else SubjectTypeV1.TV_SERIES
+        sv = SearchV1(s, query=title, subject_type=st, per_page=10)
+        res = await sv.get_content_model()
+        count = 0
+        for item in res.items:
+            if not year or str(item.releaseDate.year) == str(year):
+                matches.append({"item": item, "session": s, "version": "v1"})
+                count += 1
+                if count >= 3:
+                    break
+    except Exception:
+        pass
+    return matches
 
 
-@router.get("/manifest.json")
-async def manifest_endpoint_no_config(request: Request) -> Manifest:
-    manifest = get_manifest()
-    manifest.logo = str(request.base_url) + "logo.png"
-    return manifest
+async def search_v3(title: str, year: str, is_movie: bool):
+    matches = []
+    try:
+        s = SessionV3()
+        await s.start()
+        st = SubjectTypeV3.MOVIES if is_movie else SubjectTypeV3.TV_SERIES
+        sv = SearchV3(s, query=title, subject_type=st, per_page=10)
+        res = await sv.get_content_model()
+        count = 0
+        for item in res.items:
+            if not year or str(item.release_date.year) == str(year):
+                matches.append({"item": item, "session": s, "version": "v3"})
+                count += 1
+                if count >= 3:
+                    break
+    except Exception:
+        pass
+    return matches
 
 
-@router.get("/{config}/stream/{type}/{id}.json")
-async def stream_endpoint_with_config(
-    request: Request,
-    config: str,
-    type: Annotated[str, Path(...)],
-    id: Annotated[str, Path(...)],
-):
-    return await handle_stream(request, type, id, config)
-
-
-@router.get("/stream/{type}/{id}.json")
-async def stream_endpoint(
-    request: Request,
-    type: Annotated[str, Path(...)],
-    id: Annotated[str, Path(...)],
-):
-    return await handle_stream(request, type, id, "")
-
-
-async def handle_stream(request: Request, type: str, id: str, config_str: str):
-    if type not in ["movie", "series"]:
-        raise HTTPException(status_code=404, detail="Unsupported type")
-
-    config = parse_config(config_str)
-    min_res = config.get("resolution", "all")
-    pref_lang = config.get("language", "all")
-    layout = config.get("layout", "cinematic")
-    febox_cookie = config.get("febox_cookie")  # PEGA O COOKIE DA CONFIG
-
-    parts = id.split(":")
-    imdb_id = parts[0]
-    season = 1
-    episode = 1
-
-    if type == "series" and len(parts) >= 3:
-        season = int(parts[1])
-        episode = int(parts[2])
-
-    meta = await resolve_imdb_id(request.app.state.http_client, type, imdb_id)
-    title = meta.get("name")
-
-    if not title:
-        return {"streams": []}
-
-    year_match = re.search(
-        r"\d{4}", str(meta.get("releaseInfo", ""))
-    ) or re.search(r"\d{4}", str(meta.get("year", "")))
-    year = year_match.group(0) if year_match else ""
-
-    # PASSA O COOKIE PARA A BUSCA
-    matches = await find_all_matches(title, year, is_movie=(type == "movie"), febox_cookie=febox_cookie)
-
-    if not matches:
-        return {"streams": []}
-
-    stream_results = await extract_streams(
-        matches, type == "movie", season, episode
+async def find_all_matches(title: str, year: str, is_movie: bool) -> list[dict]:
+    results = await asyncio.gather(
+        search_v2(title, year, is_movie),
+        search_v1(title, year, is_movie),
+        search_v3(title, year, is_movie),
     )
+    matches = []
+    for r in results:
+        matches.extend(r)
+    return matches
 
-    def sort_key(x):
-        res = getattr(x["download"], "resolution", 0)
-        lang_match = 0
-        audio_lang = x.get("audio_lang")
-        if pref_lang != "all":
-            if pref_lang == "orig" and not audio_lang:
-                lang_match = 1
-            elif (
-                pref_lang != "orig"
-                and audio_lang
-                and pref_lang.lower() in audio_lang.lower()
-            ):
-                lang_match = 1
-        return (lang_match, res)
 
-    stream_results.sort(key=sort_key, reverse=True)
+def _extract_title_language(title: str) -> str | None:
+    match = TITLE_LANG_PATTERN.search(title)
+    if match:
+        return match.group(1) or match.group(2)
+    return None
 
-    streams = []
+
+def extract_match_language_info(match: dict) -> dict:
+    item = match["item"]
+    version = match["version"]
+    audio_lang = None
+    subtitle_langs = []
+    seen_subs = set()
+
+    title = getattr(item, "title", "")
+    lang_from_title = _extract_title_language(title)
+    if lang_from_title:
+        audio_lang = lang_from_title
+
+    if version in ("v2", "v1", "v3"):
+        subs = getattr(item, "subtitles", None)
+        if subs:
+            for s in subs:
+                s_clean = s.strip()
+                if s_clean and s_clean not in seen_subs:
+                    seen_subs.add(s_clean)
+                    subtitle_langs.append(s_clean)
+
+    return {
+        "audio_lang": audio_lang,
+        "subtitle_langs": subtitle_langs,
+    }
+
+
+async def extract_streams(
+    matches: list[dict], is_movie: bool, season: int = 1, episode: int = 1
+):
+    tasks = []
+
+    async def fetch_v2(match):
+        try:
+            if is_movie:
+                dl = WebSingle(match["session"], match["item"])
+                res = await dl.get_content_model()
+            else:
+                dl = WebTV(match["session"], match["item"])
+                res = await dl.get_content_model(season=season, episode=episode)
+            return (res.downloads, match)
+        except Exception:
+            return ([], match)
+
+    async def fetch_v1(match):
+        try:
+            if is_movie:
+                dl = LegacySingle(match["session"], match["item"])
+                res = await dl.get_content_model()
+            else:
+                dl = LegacyTV(match["session"], match["item"])
+                res = await dl.get_content_model(season=season, episode=episode)
+            return (res.downloads, match)
+        except Exception:
+            return ([], match)
+
+    async def fetch_v3(match):
+        # Lógica inspirada no NebulaStreams-V2: busca todas as resoluções mapeadas
+        resolutions_to_try = [
+            CustomResolutionTypeV3._2160P,
+            CustomResolutionTypeV3._1080P,
+            CustomResolutionTypeV3._720P,
+            CustomResolutionTypeV3._480P,
+            CustomResolutionTypeV3._360P,
+        ]
+        
+        streams = []
+        for res_type in resolutions_to_try:
+            try:
+                dl = MobileVideo(match["session"], resolution=res_type)
+                if is_movie:
+                    res = await dl.get_content_model(
+                        subject_id=str(match["item"].subject_id)
+                    )
+                else:
+                    res = await dl.get_content_model(
+                        subject_id=str(match["item"].subject_id),
+                        season=season,
+                        episode=episode,
+                    )
+                streams.extend(res.list)
+            except Exception:
+                pass
+                
+        try:
+            await match["session"].close()
+        except Exception:
+            pass
+            
+        return (streams, match)
+
+    for match in matches:
+        if match["version"] == "v2":
+            tasks.append(fetch_v2(match))
+        elif match["version"] == "v1":
+            tasks.append(fetch_v1(match))
+        elif match["version"] == "v3":
+            tasks.append(fetch_v3(match))
+
+    results = await asyncio.gather(*tasks)
+
+    all_streams = []
+    for downloads, match in results:
+        lang_info = extract_match_language_info(match)
+        for dl in downloads:
+            all_streams.append(
+                {
+                    "download": dl,
+                    "audio_lang": lang_info["audio_lang"],
+                    "subtitle_langs": lang_info["subtitle_langs"],
+                }
+            )
+
+    # Remover duplicados baseado na URL
     seen_urls = set()
+    unique_streams = []
+    for stream in all_streams:
+        url = str(stream["download"].url)
+        if url not in seen_urls:
+            seen_urls.add(url)
+            unique_streams.append(stream)
 
-    for stream_data in stream_results:
-        dl = stream_data["download"]
-        audio_lang = stream_data["audio_lang"]
-        subtitle_langs = stream_data["subtitle_langs"]
-
-        url_str = str(dl.url)
-        base_dl_url = url_str.split("?")[0] if "?" in url_str else url_str
-        if base_dl_url in seen_urls:
-            continue
-        seen_urls.add(base_dl_url)
-
-        resolution = getattr(dl, "resolution", 0)
-        size = getattr(dl, "size", 0)
-
-        if min_res == "4k" and resolution < 2160:
-            continue
-        elif min_res == "1080p" and resolution < 1080:
-            continue
-        elif min_res == "720p" and resolution < 720:
-            continue
-
-        if pref_lang != "all":
-            if pref_lang == "orig" and audio_lang:
-                continue
-            elif pref_lang != "orig":
-                if not audio_lang or pref_lang.lower() not in audio_lang.lower():
-                    continue
-
-        filename = get_stream_filename(url_str)
-        audio_langs_display = [audio_lang] if audio_lang else None
-
-        desc = generate_stream_description(
-            resolution,
-            size,
-            audio_langs=audio_langs_display,
-            subtitle_langs=subtitle_langs if subtitle_langs else None,
-        )
-
-        if layout == "torrentio":
-            desc = desc.replace("\n", " | ")
-        elif layout == "badges":
-            desc = f"🎥 {resolution}p | 🔊 {audio_lang or 'Unknown'}\n{desc}"
-
-        streams.append(
-            {
-                "name": "MovieBox",
-                "title": desc,
-                "url": url_str,
-                "behaviorHints": {
-                    "notWebReady": True,
-                    "filename": filename,
-                    "proxyHeaders": {
-                        "request": {
-                            "Referer": "https://fmoviesunblocked.net/",
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                        }
-                    },
-                },
-            }
-        )
-
-    return {"streams": streams}
+    return unique_streams
