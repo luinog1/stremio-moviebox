@@ -152,10 +152,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const toast = document.getElementById('toast');
 
     function updateLink() {
+        const febboxCookie = document.getElementById('febbox_cookie').value.trim();
         const config = {
             resolution: document.getElementById('resolution').value,
             language: document.getElementById('language').value,
-            layout: document.getElementById('layout').value
+            layout: document.getElementById('layout').value,
+            ...(febboxCookie ? { febbox_cookie: febboxCookie } : {})
         };
 
         const jsonStr = JSON.stringify(config);
