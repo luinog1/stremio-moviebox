@@ -77,6 +77,7 @@ async def handle_stream(request: Request, type: str, id: str, config_str: str):
     min_res = config.get("resolution", "all")
     pref_lang = config.get("language", "all")
     layout = config.get("layout", "cinematic")
+    febox_cookie = config.get("febox_cookie") # PEGA O COOKIE DA CONFIG
 
     parts = id.split(":")
     imdb_id = parts[0]
@@ -98,7 +99,8 @@ async def handle_stream(request: Request, type: str, id: str, config_str: str):
     ) or re.search(r"\d{4}", str(meta.get("year", "")))
     year = year_match.group(0) if year_match else ""
 
-    matches = await find_all_matches(title, year, is_movie=(type == "movie"))
+    # PASSA O COOKIE PARA A BUSCA
+    matches = await find_all_matches(title, year, is_movie=(type == "movie"), febox_cookie=febox_cookie)
 
     if not matches:
         return {"streams": []}
