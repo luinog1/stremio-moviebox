@@ -221,4 +221,15 @@ class RootDownloadableFilesDetailModel(BaseModel):
             VideoFileMetadata: Media file matching that resolution.
 
         Raises:
-            ValueError: Incase no media_file matched the
+            ValueError: Incase no media_file matched the resolution.
+        """
+        available_media_file_resolutions = []
+        for media_file in self.list:
+            available_media_file_resolutions.append(media_file.resolution)
+            if media_file.resolution == resolution:
+                return media_file
+
+        raise ValueError(
+            "No media_file matched that resolution. Available resolutions "
+            f"include {available_media_file_resolutions}"
+        )
