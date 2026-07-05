@@ -113,9 +113,6 @@ async def search_v3(title: str, year: str, is_movie: bool, febox_cookie: Optiona
         await s.start() # Inicializa a sessão PRIMEIRO
         apply_cookie(s, febox_cookie, "V3") # Aplica o cookie DEPOIS de inicializar
         
-        # Log para vermos quais resoluções a V3 suporta
-        print(f"DEBUG V3: Resoluções disponíveis no Enum: {[e.name for e in CustomResolutionTypeV3]}")
-        
         st = SubjectTypeV3.MOVIES if is_movie else SubjectTypeV3.TV_SERIES
         sv = SearchV3(s, query=title, subject_type=st, per_page=10)
         res = await sv.get_content_model()
@@ -211,35 +208,44 @@ async def extract_streams(
             return ([], match)
 
     async def fetch_v3(match):
-        resolutions_to_try = [
-            CustomResolutionTypeV3.BEST,
-            CustomResolutionTypeV3._720P,
-            CustomResolutionTypeV3._480P,
-            CustomResolutionTypeV3._360P,
-        ]
-        for res_type in resolutions_to_try:
-            try:
-                dl = MobileVideo(match["session"], resolution=res_type)
-                if is_movie:
-                    res = await dl.get_content_model(
-                        subject_id=str(match["item"].subject_id)
-                    )
-                else:
-                    res = await dl.get_content_model(
-                        subject_id=str(match["item"].subject_id),
-                        season=season,
-                        episode=episode,
-                    )
-                await match["session"].close()
-                return (res.list, match)
-            except Exception as e:
-                if "406" not in str(e):
-                    break
+        streams = []
+        
+        # 1. Tenta buscar explicitamente o 4K (2160P)
+        try:
+            print("DEBUG V3: Tentando buscar 2160P (4K)...")
+            dl = MobileVideo(match["session"], resolution=CustomResolutionTypeV3._2160P)
+            if is_movie:
+                res = await dl.get_content_model(subject_id=str(match["item"].subject_id))
+            else:
+                res = await dl.get_content_model(subject_id=str(match["item"].subject_id), season=season, episode=episode)
+            streams.extend(res.list)
+            print(f"DEBUG V3: 4K encontrado! {len(res.list)} streams.")
+        except Exception as e:
+            if "406" in str(e):
+                print("DEBUG V3: 4K não disponível para este conteúdo (406).")
+            else:
+                print(f"DEBUG V3 Erro 4K: {e}")
+
+        # 2. Tenta buscar o BEST (que geralmente retorna 1080p e menores)
+        try:
+            print("DEBUG V3: Tentando buscar BEST...")
+            dl = MobileVideo(match["session"], resolution=CustomResolutionTypeV3.BEST)
+            if is_movie:
+                res = await dl.get_content_model(subject_id=str(match["item"].subject_id))
+            else:
+                res = await dl.get_content_model(subject_id=str(match["item"].subject_id), season=season, episode=episode)
+            streams.extend(res.list)
+            print(f"DEBUG V3: BEST encontrado! {len(res.list)} streams.")
+        except Exception as e:
+            if "406" not in str(e):
+                print(f"DEBUG V3 Erro BEST: {e}")
+
         try:
             await match["session"].close()
         except Exception:
             pass
-        return ([], match)
+            
+        return (streams, match)
 
     for match in matches:
         if match["version"] == "v2":
