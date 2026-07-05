@@ -37,8 +37,9 @@ async def search_v2(title: str, year: str, is_movie: bool, febox_cookie: Optiona
         if febox_cookie:
             try:
                 s.headers["Cookie"] = f"FEBOX={febox_cookie}"
-            except Exception:
-                pass
+                print("DEBUG: FEBOX cookie aplicado na sessão V2")
+            except Exception as e:
+                print(f"DEBUG ERRO: Não foi possível aplicar cookie na V2: {e}")
         st = SubjectTypeV2.MOVIES if is_movie else SubjectTypeV2.TV_SERIES
         sv = SearchV2(s, query=title, subject_type=st, per_page=10)
         res = await sv.get_content_model()
@@ -49,8 +50,8 @@ async def search_v2(title: str, year: str, is_movie: bool, febox_cookie: Optiona
                 count += 1
                 if count >= 3:
                     break
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"DEBUG ERRO V2: {e}")
     return matches
 
 
@@ -61,8 +62,9 @@ async def search_v1(title: str, year: str, is_movie: bool, febox_cookie: Optiona
         if febox_cookie:
             try:
                 s.headers["Cookie"] = f"FEBOX={febox_cookie}"
-            except Exception:
-                pass
+                print("DEBUG: FEBOX cookie aplicado na sessão V1")
+            except Exception as e:
+                print(f"DEBUG ERRO: Não foi possível aplicar cookie na V1: {e}")
         st = SubjectTypeV1.MOVIES if is_movie else SubjectTypeV1.TV_SERIES
         sv = SearchV1(s, query=title, subject_type=st, per_page=10)
         res = await sv.get_content_model()
@@ -73,8 +75,8 @@ async def search_v1(title: str, year: str, is_movie: bool, febox_cookie: Optiona
                 count += 1
                 if count >= 3:
                     break
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"DEBUG ERRO V1: {e}")
     return matches
 
 
@@ -85,8 +87,9 @@ async def search_v3(title: str, year: str, is_movie: bool, febox_cookie: Optiona
         if febox_cookie:
             try:
                 s.headers["Cookie"] = f"FEBOX={febox_cookie}"
-            except Exception:
-                pass
+                print("DEBUG: FEBOX cookie aplicado na sessão V3")
+            except Exception as e:
+                print(f"DEBUG ERRO: Não foi possível aplicar cookie na V3: {e}")
         await s.start()
         st = SubjectTypeV3.MOVIES if is_movie else SubjectTypeV3.TV_SERIES
         sv = SearchV3(s, query=title, subject_type=st, per_page=10)
@@ -98,12 +101,13 @@ async def search_v3(title: str, year: str, is_movie: bool, febox_cookie: Optiona
                 count += 1
                 if count >= 3:
                     break
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"DEBUG ERRO V3: {e}")
     return matches
 
 
 async def find_all_matches(title: str, year: str, is_movie: bool, febox_cookie: Optional[str] = None) -> list[dict]:
+    print(f"DEBUG: Buscando matches para '{title}' com cookie: {'Sim' if febox_cookie else 'Não'}")
     results = await asyncio.gather(
         search_v2(title, year, is_movie, febox_cookie),
         search_v1(title, year, is_movie, febox_cookie),
@@ -112,6 +116,7 @@ async def find_all_matches(title: str, year: str, is_movie: bool, febox_cookie: 
     matches = []
     for r in results:
         matches.extend(r)
+    print(f"DEBUG: Total de matches encontrados: {len(matches)}")
     return matches
 
 
@@ -167,7 +172,8 @@ async def extract_streams(
                 dl = WebTV(match["session"], match["item"])
                 res = await dl.get_content_model(season=season, episode=episode)
             return (res.downloads, match)
-        except Exception:
+        except Exception as e:
+            print(f"DEBUG ERRO Fetch V2: {e}")
             return ([], match)
 
     async def fetch_v1(match):
@@ -179,7 +185,8 @@ async def extract_streams(
                 dl = LegacyTV(match["session"], match["item"])
                 res = await dl.get_content_model(season=season, episode=episode)
             return (res.downloads, match)
-        except Exception:
+        except Exception as e:
+            print(f"DEBUG ERRO Fetch V1: {e}")
             return ([], match)
 
     async def fetch_v3(match):
@@ -227,6 +234,8 @@ async def extract_streams(
     for downloads, match in results:
         lang_info = extract_match_language_info(match)
         for dl in downloads:
+            # Log de qual resolução foi encontrada
+            print(f"DEBUG: Stream encontrado - Resolução: {getattr(dl, 'resolution', 'Desconhecida')}")
             all_streams.append(
                 {
                     "download": dl,
@@ -235,4 +244,5 @@ async def extract_streams(
                 }
             )
 
+    print(f"DEBUG: Total de streams brutos extraídos: {len(all_streams)}")
     return all_streams
